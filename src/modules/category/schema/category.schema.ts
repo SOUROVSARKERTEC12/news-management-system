@@ -13,7 +13,4 @@ export const categoryCreateSchema = categorySchema.pick({
 });
 
 // Update
-export const categoryUpdateSchema = z.object({
-  id: z.uuidv4(),
-  categoryName: z.string(),
-});
+export const categoryUpdateSchema = categoryCreateSchema;

@@ -1,98 +1,464 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# News Management System
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A RESTful backend application for managing news articles and categories, built with NestJS, MySQL, and Redis caching.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 📋 Table of Contents
 
-## Description
+- [Tech Stack](#tech-stack)
+- [Features](#features)
+- [Database Design](#database-design)
+- [Redis Caching Strategy](#redis-caching-strategy)
+- [Setup Instructions](#setup-instructions)
+- [API Endpoints](#api-endpoints)
+- [Docker Deployment](#docker-deployment)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 🚀 Tech Stack
 
-## Project setup
+- **Runtime**: Node.js 18+
+- **Framework**: NestJS
+- **Database**: MySQL 8.0
+- **Cache**: Redis 7
+- **ORM**: TypeORM
+- **Validation**: Zod (via nestjs-zod)
+- **Containerization**: Docker & Docker Compose
 
-```bash
-$ yarn install
+## ✨ Features
+
+- ✅ **CRUD Operations** for categories and news articles
+- ✅ **Soft Delete** support for news (data retained with `deleted_at` timestamp)
+- ✅ **Pagination** for news list API
+- ✅ **Redis Caching** with automatic invalidation
+- ✅ **Input Validation** using Zod schemas
+- ✅ **Type Safety** with TypeScript
+- ✅ **RESTful API** design
+- ✅ **Docker** support for easy deployment
+
+## 🗄️ Database Design
+
+### Entity-Relationship Diagram
+
+```
+┌─────────────────┐         ┌──────────────────┐
+│    category     │         │      news        │
+├─────────────────┤         ├──────────────────┤
+│ id (PK)         │◄────────│ id (PK)          │
+│ categoryName    │    1:N  │ title            │
+│ created_at      │         │ description      │
+│ updated_at      │         │ category_id (FK) │
+└─────────────────┘         │ created_at       │
+                            │ updated_at       │
+                            │ deleted_at       │
+                            └──────────────────┘
 ```
 
-## Compile and run the project
+### Tables
 
-```bash
-# development
-$ yarn run start
+#### `category`
+| Column       | Type         | Description                    |
+|--------------|--------------|--------------------------------|
+| id           | VARCHAR(36)  | Primary key (UUID)             |
+| categoryName | VARCHAR(100) | Unique category name           |
+| created_at   | DATETIME     | Timestamp of creation          |
+| updated_at   | DATETIME     | Timestamp of last update       |
 
-# watch mode
-$ yarn run start:dev
+#### `news`
+| Column       | Type         | Description                    |
+|--------------|--------------|--------------------------------|
+| id           | VARCHAR(36)  | Primary key (UUID)             |
+| title        | VARCHAR(200) | News title                     |
+| description  | TEXT         | News content                   |
+| category_id  | VARCHAR(36)  | Foreign key to category        |
+| created_at   | DATETIME     | Timestamp of creation          |
+| updated_at   | DATETIME     | Timestamp of last update       |
+| deleted_at   | DATETIME     | Soft delete timestamp (NULL if active) |
 
-# production mode
-$ yarn run start:prod
+**Relationships:**
+- News **belongs to** one Category (Many-to-One)
+- Category **has many** News articles (One-to-Many)
+- Cascade delete: Deleting a category removes all associated news
+
+**Indexes:**
+- `idx_category_name` on `category.categoryName`
+- `idx_news_category` on `news.category_id`
+- `idx_news_created` on `news.created_at`
+- `idx_news_deleted` on `news.deleted_at`
+
+## 🔄 Redis Caching Strategy
+
+### Cache Keys
+
+| Endpoint          | Cache Key      | TTL      | Strategy              |
+|-------------------|----------------|----------|-----------------------|
+| GET /news         | `all_news`     | 600s     | Automatic (decorator) |
+| GET /news/:id     | `news:{id}`    | 300s     | Manual check          |
+| GET /category     | `all_categories` | 600s   | Automatic (decorator) |
+| GET /category/:id | `category:{id}` | 300s    | Manual check          |
+
+### Cache Invalidation
+
+Caches are automatically cleared when:
+- **Creating** news/category → Clear list cache
+- **Updating** news/category → Clear both list and item caches
+- **Deleting** news/category → Clear both list and item caches
+
+### Implementation
+
+```typescript
+// Automatic caching via decorator
+@CacheKey('all_news')
+@Get()
+async findAll() { ... }
+
+// Manual caching for individual items
+const cached = await this.cacheManager.get(key);
+if (cached) return cached;
+
+// Cache with 5-minute TTL
+await this.cacheManager.set(key, data, 300);
+
+// Cache invalidation
+await this.cacheManager.del(['all_news', 'news:123']);
 ```
 
-## Run tests
+## 📦 Setup Instructions
+
+### Prerequisites
+
+- Node.js 18 or higher
+- MySQL 8.0
+- Redis 7
+- npm or yarn
+
+### Local Development
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd news-management-system
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your database and Redis credentials
+   ```
+
+4. **Create database**
+   ```bash
+   mysql -u root -p
+   CREATE DATABASE news_management;
+   USE news_management;
+   SOURCE database/schema.sql;
+   ```
+
+5. **Start Redis**
+   ```bash
+   redis-server
+   ```
+
+6. **Run the application**
+   ```bash
+   # Development mode
+   npm run start:dev
+
+   # Production mode
+   npm run build
+   npm run start:prod
+   ```
+
+7. **Application runs on**
+   ```
+   http://localhost:5000
+   ```
+
+## 🐳 Docker Deployment
+
+### Quick Start with Docker Compose
+
+1. **Start all services**
+   ```bash
+   docker-compose up -d
+   ```
+
+   This starts:
+   - MySQL database on port 3306
+   - Redis cache on port 6379
+   - Node.js app on port 5000
+
+2. **View logs**
+   ```bash
+   docker-compose logs -f app
+   ```
+
+3. **Stop services**
+   ```bash
+   docker-compose down
+   ```
+
+4. **Stop and remove volumes**
+   ```bash
+   docker-compose down -v
+   ```
+
+### Manual Docker Build
 
 ```bash
-# unit tests
-$ yarn run test
+# Build image
+docker build -t news-management-app .
 
-# e2e tests
-$ yarn run test:e2e
-
-# test coverage
-$ yarn run test:cov
+# Run container
+docker run -p 5000:5000 \
+  -e DATABASE_HOST=mysql \
+  -e REDIS_HOST=redis \
+  news-management-app
 ```
 
-## Deployment
+## 📡 API Endpoints
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### Category Endpoints
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+#### Create Category
+```http
+POST /category
+Content-Type: application/json
 
-```bash
-$ yarn install -g @nestjs/mau
-$ mau deploy
+{
+  "categoryName": "Technology"
+}
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+**Response:** `201 Created`
+```json
+{
+  "statusCode": 201,
+  "payload": {
+    "category": {
+      "id": "uuid",
+      "categoryName": "Technology",
+      "createdAt": "2025-12-10T00:00:00.000Z",
+      "updatedAt": "2025-12-10T00:00:00.000Z"
+    }
+  }
+}
+```
 
-## Resources
+#### List All Categories
+```http
+GET /category
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+**Response:** `200 OK` (Cached with key `all_categories`)
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+#### Get Single Category
+```http
+GET /category/:id
+```
 
-## Support
+**Response:** `200 OK` (Cached for 5 minutes)
+```json
+{
+  "statusCode": 200,
+  "payload": {
+    "category": { ... },
+    "fromCache": true
+  }
+}
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+#### Update Category
+```http
+PATCH /category/:id
+Content-Type: application/json
 
-## Stay in touch
+{
+  "categoryName": "Updated Name"
+}
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+**Response:** `200 OK`
 
-## License
+#### Delete Category
+```http
+DELETE /category/:id
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+**Response:** `200 OK`
+
+---
+
+### News Endpoints
+
+#### Create News
+```http
+POST /news
+Content-Type: application/json
+
+{
+  "title": "Breaking News Title",
+  "description": "Full news article content here...",
+  "categoryId": "category-uuid"
+}
+```
+
+**Response:** `201 Created`
+
+#### List News with Pagination
+```http
+GET /news?page=1&limit=10
+```
+
+**Query Parameters:**
+- `page` (optional): Page number, default `1`
+- `limit` (optional): Items per page, default `10`, max `100`
+
+**Response:** `200 OK` (Cached with key `all_news`)
+```json
+{
+  "statusCode": 200,
+  "payload": {
+    "news": [
+      {
+        "id": "uuid",
+        "title": "News Title",
+        "description": "News content...",
+        "category": {
+          "id": "uuid",
+          "categoryName": "Technology"
+        },
+        "createdAt": "2025-12-10T00:00:00.000Z",
+        "updatedAt": "2025-12-10T00:00:00.000Z"
+      }
+    ],
+    "pagination": {
+      "total": 50,
+      "page": 1,
+      "limit": 10,
+      "totalPages": 5
+    }
+  }
+}
+```
+
+#### Get Single News
+```http
+GET /news/:id
+```
+
+**Response:** `200 OK` (Cached for 5 minutes)
+
+#### Update News
+```http
+PATCH /news/:id
+Content-Type: application/json
+
+{
+  "title": "Updated Title",
+  "description": "Updated content..."
+}
+```
+
+**Response:** `200 OK`
+
+#### Delete News (Soft Delete)
+```http
+DELETE /news/:id
+```
+
+**Response:** `200 OK`
+
+**Note:** News is soft-deleted (sets `deleted_at` timestamp) and won't appear in queries but remains in database.
+
+---
+
+## 🔧 Environment Variables
+
+See `.env.example` for all required variables:
+
+```env
+NODE_ENV=development
+PORT=5000
+
+DATABASE_USERNAME=your_mysql_username
+DATABASE_PASSWORD=your_mysql_password
+DATABASE_NAME=news_management
+DATABASE_HOST=localhost
+DATABASE_PORT=3306
+
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_TTL=600
+```
+
+## 📝 Project Structure
+
+```
+news-management-system/
+├── src/
+│   ├── modules/
+│   │   ├── category/
+│   │   │   ├── dto/
+│   │   │   ├── schema/
+│   │   │   ├── category.controller.ts
+│   │   │   ├── category.service.ts
+│   │   │   └── category.module.ts
+│   │   └── news/
+│   │       ├── dto/
+│   │       ├── schema/
+│   │       ├── news.controller.ts
+│   │       ├── news.service.ts
+│   │       └── news.module.ts
+│   ├── entities/
+│   │   ├── category.entity.ts
+│   │   └── news.entity.ts
+│   ├── common/
+│   │   ├── dto/
+│   │   └── apiResponse/
+│   ├── config/
+│   └── app.module.ts
+├── database/
+│   └── schema.sql
+├── .env.example
+├── docker-compose.yml
+├── Dockerfile
+└── README.md
+```
+
+## 🎯 Key Design Decisions
+
+### DRY Principles Applied
+
+1. **Base Cache Helper Methods**: Shared cache invalidation logic
+2. **Pagination DTO**: Reusable across modules
+3. **API Response Wrapper**: Consistent response structure
+4. **Zod Schemas**: Centralized validation logic
+
+### Soft Delete Approach
+
+- Uses TypeORM's `@DeleteDateColumn` decorator
+- Automatically filters soft-deleted records in queries
+- Data retained for audit/recovery purposes
+- `softRemove()` method sets `deleted_at` timestamp
+
+### Caching Strategy
+
+- **List endpoints**: Cached automatically using `@CacheKey` decorator
+- **Single item endpoints**: Manual cache check with `fromCache` flag in response
+- **Mutations**: Invalidate affected caches immediately
+- **TTL**: List (10 min), Items (5 min) - configurable via Redis TTL
+
+## 📄 License
+
+MIT
+
+## 👤 Author
+
+SOUROV SARKAR
+
+---
+
+**Happy Coding! 🚀**

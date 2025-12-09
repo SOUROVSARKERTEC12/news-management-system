@@ -8,6 +8,7 @@ import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod';
 import { CategoryModule } from './modules/category/category.module';
+import { NewsModule } from './modules/news/news.module';
 import { AllExceptionsFilter } from './error/allExceptionsFilter';
 import * as redisStore from 'cache-manager-ioredis';
 import { CacheModule } from '@nestjs/cache-manager';
@@ -50,6 +51,7 @@ import { CacheModule } from '@nestjs/cache-manager';
       },
     }),
     CategoryModule,
+    NewsModule,
   ],
 
   controllers: [AppController],
