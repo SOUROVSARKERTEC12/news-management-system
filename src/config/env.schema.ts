@@ -24,6 +24,9 @@ export const environmentSchema = z.object({
   DATABASE_HOST: nonEmptyString,
   DATABASE_PORT: numericString.transform(Number).default(5432),
   DATABASE_DIALECT: z.enum(['mysql']).default('mysql'),
+  REDIS_HOST: nonEmptyString,
+  REDIS_PORT: numericString.transform(Number).default(6379),
+  REDIS_TTL: numericString.transform(Number).default(600),
 });
 
 // ✅ Parse & validate environment

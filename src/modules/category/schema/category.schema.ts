@@ -10,7 +10,6 @@ export const categorySchema = z.object({
 // Create
 export const categoryCreateSchema = categorySchema.pick({
   categoryName: true,
-  description: true,
 });
 
 // Update
