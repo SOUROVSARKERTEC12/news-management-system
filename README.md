@@ -2,6 +2,10 @@
 
 A RESTful backend application for managing news articles and categories, built with NestJS, MySQL, and Redis caching.
 
+> **🔴 Live Demo:** [https://news-management-system-zomp.onrender.com/](https://news-management-system-zomp.onrender.com/)
+>
+> *Note: The live server is hosted on a free instance and may take a few minutes to wake up from inactivity.*
+
 ## 📋 Table of Contents
 
 - [Tech Stack](#tech-stack)
@@ -139,7 +143,7 @@ await this.cacheManager.del(['all_news', 'news:123']);
 
 2. **Install dependencies**
    ```bash
-   npm install
+   yarn install
    ```
 
 3. **Configure environment**
@@ -164,11 +168,11 @@ await this.cacheManager.del(['all_news', 'news:123']);
 6. **Run the application**
    ```bash
    # Development mode
-   npm run start:dev
+   yarn start:dev
 
    # Production mode
-   npm run build
-   npm run start:prod
+   yarn build
+   yarn start:prod
    ```
 
 7. **Application runs on**
@@ -190,17 +194,28 @@ await this.cacheManager.del(['all_news', 'news:123']);
    - Redis cache on port 6379
    - Node.js app on port 5000
 
-2. **View logs**
+2. **Run Migrations (Important)**
+   After the container is running, you need to execute the database migrations manually:
+
+   ```bash
+   # Enter the app container
+   docker exec -it news-management-app bash
+
+   # Run migrations inside the container
+   yarn migration:run
+   ```
+
+3. **View logs**
    ```bash
    docker-compose logs -f app
    ```
 
-3. **Stop services**
+4. **Stop services**
    ```bash
    docker-compose down
    ```
 
-4. **Stop and remove volumes**
+5. **Stop and remove volumes**
    ```bash
    docker-compose down -v
    ```
@@ -344,6 +359,14 @@ GET /news?page=1&limit=10
 }
 ```
 
+#### Get Deleted News
+Retrieves the list of soft-deleted news articles.
+```http
+GET /news/deleted
+```
+
+**Response:** `200 OK`
+
 #### Get Single News
 ```http
 GET /news/:id
@@ -371,7 +394,23 @@ DELETE /news/:id
 
 **Response:** `200 OK`
 
-**Note:** News is soft-deleted (sets `deleted_at` timestamp) and won't appear in queries but remains in database.
+**Note:** News is soft-deleted (sets `deleted_at` timestamp) and won't appear in standard queries.
+
+#### Restore Deleted News
+Restores a soft-deleted news article.
+```http
+POST /news/restore/:id
+```
+
+**Response:** `200 OK`
+```json
+{
+  "statusCode": 200,
+  "payload": {
+    "message": "News restored successfully"
+  }
+}
+```
 
 ---
 
