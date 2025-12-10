@@ -15,7 +15,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
   imports: [
-    CacheModule.registerAsync({
+    CacheModule.register({
       isGlobal: true,
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
