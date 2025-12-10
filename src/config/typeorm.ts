@@ -18,7 +18,7 @@ const dataSourceConfig: DataSourceOptions = {
   logging: false,
   namingStrategy: new SnakeNamingStrategy(),
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-  migrations: [__dirname + '/../migrations/history/*.ts'],
+  migrations: [__dirname + '/../migrations/history/*.{ts,js}'],
   migrationsTableName: 'migrations',
   metadataTableName: 'typeorm_metadata',
 };

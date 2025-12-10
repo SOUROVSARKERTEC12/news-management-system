@@ -1,89 +1,60 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  # MySQL Database
-  mysql:
+  app:
+    container_name: news-management-app
+    build:
+      context: .
+      target: development
+    command: yarn start:dev
+    ports:
+      - "${PORT:-5000}:${PORT:-5000}"
+    environment:
+      - DATABASE_HOST=mysql_db
+      - REDIS_HOST=redis_db
+    env_file:
+      - .env
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - mysql_db
+      - redis_db
+    networks:
+      - news-network
+
+  mysql_db:
     image: mysql:8.0
     container_name: news_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: news_management
-      MYSQL_USER: news_user
-      MYSQL_PASSWORD: news_password
+      MYSQL_ROOT_PASSWORD: root_password # root password
+      MYSQL_DATABASE: news_management # database to create
+      MYSQL_USER: news_user # non-root app user
+      MYSQL_PASSWORD: news_password # password for app user
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
-      - news_network
+      - news-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: news_redis
-    restart: unless-stopped
+  redis_db:
+    image: redis:alpine
+    container_name: news-redis
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
+      - "6380:6379"
     networks:
-      - news_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Node.js Application
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: news_app
-    restart: unless-stopped
-    ports:
-      - "5000:5000"
-    environment:
-      NODE_ENV: production
-      PORT: 5000
-      DATABASE_HOST: mysql
-      DATABASE_PORT: 3306
-      DATABASE_USERNAME: news_user
-      DATABASE_PASSWORD: news_password
-      DATABASE_NAME: news_management
-      DATABASE_DIALECT: mysql
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_TTL: 600
-    command: >
-      sh -c "
-        echo 'Waiting for database...' &&
-        sleep 10 &&
-        echo 'Generating migration...' &&
-        npx ts-node src/migrations/generate.ts initial_schema &&
-        echo 'Running migrations...' &&
-        npm run migration:run &&
-        echo 'Starting application...' &&
-        node dist/main.js
-      "
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - news_network
-
-networks:
-  news_network:
-    driver: bridge
+      - news-network
 
 volumes:
   mysql_data:
-  redis_data:
+
+networks:
+  news-network:
+    driver: bridge

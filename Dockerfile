@@ -1,36 +1,26 @@
-# Build stage
-FROM node:latest AS builder
+FROM node:22 AS development
 
-WORKDIR /app
+WORKDIR /usr/src/app
 
-# Copy package files
-COPY package*.json ./
+COPY package*.json yarn.lock ./
 
-# Install dependencies
-RUN npm ci
+RUN yarn install
 
-# Copy source code
 COPY . .
 
-# Build NestJS application
-RUN npm run build
+RUN yarn build
 
-# Production stage
-FROM node:latest
+FROM node:22 AS production
 
-WORKDIR /app
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
 
-# Copy package files
-COPY package*.json ./
+WORKDIR /usr/src/app
 
-# Install only production dependencies
-RUN npm ci --only=development
+COPY package*.json yarn.lock ./
 
-# Copy built files
-COPY --from=builder /app/dist ./dist
+RUN yarn install --prod
 
-# Expose application port
-EXPOSE 5000
+COPY --from=development /usr/src/app/dist ./dist
 
-# Start the application
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/main"]

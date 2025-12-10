@@ -30,8 +30,18 @@ console.log(`➡️ Copied last migration to execute folder: ${LAST_EXECUTED_FIL
 
 // Run TypeORM migration
 try {
-  const command = `npx ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d ./src/config/typeorm.ts`;
-  console.log('➡️ Running migrations via TypeORM CLI...');
+  const isProduction = process.env.NODE_ENV === 'production';
+  const typeOrmCli = './node_modules/typeorm/cli.js';
+  const dataSource = isProduction ? './dist/config/typeorm.js' : './src/config/typeorm.ts';
+
+  let command;
+  if (isProduction) {
+    command = `node ${typeOrmCli} migration:run -d ${dataSource}`;
+  } else {
+    command = `npx ts-node -r tsconfig-paths/register ${typeOrmCli} migration:run -d ${dataSource}`;
+  }
+  
+  console.log(`➡️ Running migrations via TypeORM CLI (${isProduction ? 'Production' : 'Development'})...`);
   execSync(command, { stdio: 'inherit' });
   console.log('✅ Migration executed successfully!');
 } catch (error: any) {
