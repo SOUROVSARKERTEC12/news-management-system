@@ -25,7 +25,6 @@ import {
 import type { Cache } from 'cache-manager';
 
 @Controller('news')
-@UseInterceptors(CacheInterceptor)
 export class NewsController {
   constructor(
     private readonly newsService: NewsService,
@@ -65,8 +64,9 @@ export class NewsController {
     });
   }
 
-  @CacheKey('all_news')
   @Get()
+  @UseInterceptors(CacheInterceptor)
+  @CacheKey('all_news')
   async findAll(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
@@ -85,24 +85,19 @@ export class NewsController {
     });
   }
 
+  @Get('deleted')
+  async findDeleted() {
+    const deletedNews = await this.newsService.findDeleted();
+
+    return apiResponse({
+      statusCode: HttpStatus.OK,
+      payload: { news: deletedNews },
+    });
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    const key = this.itemKey(id);
-
-    // 1. Try Redis cache
-    const cached = await this.cacheManager.get(key);
-    if (cached) {
-      return apiResponse({
-        statusCode: HttpStatus.OK,
-        payload: { news: cached, fromCache: true },
-      });
-    }
-
-    // 2. Fetch from DB
     const news = await this.newsService.findOne(id);
-
-    // 3. Store in cache (TTL 5 min)
-    await this.cacheManager.set(key, news, 300);
 
     return apiResponse({
       statusCode: HttpStatus.OK,
@@ -133,6 +128,19 @@ export class NewsController {
     return apiResponse({
       statusCode: HttpStatus.OK,
       payload: { message: 'News deleted successfully' },
+    });
+  }
+
+  @Post('restore/:id')
+  async restore(@Param('id') id: string) {
+    await this.newsService.restore(id);
+
+    // Invalidate list cache
+    await this.invalidate([this.listCacheKey]);
+
+    return apiResponse({
+      statusCode: HttpStatus.OK,
+      payload: { message: 'News restored successfully' },
     });
   }
 }

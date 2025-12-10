@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 import { CategoryEntity } from './category.entity';
 
@@ -39,7 +40,7 @@ export class NewsEntity {
   })
   updatedAt: Date;
 
-  @Column({
+  @DeleteDateColumn({
     type: 'datetime',
     name: 'deleted_at',
     nullable: true,

@@ -24,7 +24,6 @@ import {
 import type { Cache } from 'cache-manager';
 
 @Controller('category')
-@UseInterceptors(CacheInterceptor)
 export class CategoryController {
   constructor(
     private readonly categoryService: CategoryService,
@@ -64,8 +63,9 @@ export class CategoryController {
     });
   }
 
-  @CacheKey('all_categories')
   @Get()
+  @UseInterceptors(CacheInterceptor)
+  @CacheKey('all_categories')
   async findAll() {
     const categories = await this.categoryService.findAll();
 
@@ -77,22 +77,7 @@ export class CategoryController {
 
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    const key = this.itemKey(id);
-
-    // 1. Try Redis cache
-    const cached = await this.cacheManager.get(key);
-    if (cached) {
-      return apiResponse({
-        statusCode: HttpStatus.OK,
-        payload: { category: cached, fromCache: true },
-      });
-    }
-
-    // 2. Fetch from DB
     const category = await this.categoryService.findOne(id);
-
-    // 3. Store in cache (TTL 5 min)
-    await this.cacheManager.set(key, category, 300);
 
     return apiResponse({
       statusCode: HttpStatus.OK,
@@ -103,7 +88,6 @@ export class CategoryController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: CategoryUpdateDto) {
     const updated = await this.categoryService.update(id, dto);
-
     // Invalidate both list + item
     await this.invalidate([this.listCacheKey, this.itemKey(id)]);
 

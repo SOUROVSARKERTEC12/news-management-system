@@ -18,7 +18,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     const errors: any[] = [];
-    console.log(exception);
+
     // 🟩 ZodValidationException (nestjs-zod)
     if (exception instanceof ZodValidationException) {
       const zodError = exception.getZodError();
