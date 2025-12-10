@@ -12,7 +12,9 @@ if (!fs.existsSync(EXECUTE_DIR)) {
 }
 
 // Get all migration files from history
-const historyFiles = fs.readdirSync(HISTORY_DIR).filter(f => f.endsWith('.ts') || f.endsWith('.js'));
+const historyFiles = fs
+  .readdirSync(HISTORY_DIR)
+  .filter((f) => f.endsWith('.ts') || f.endsWith('.js'));
 if (historyFiles.length === 0) {
   console.error('❌ No migration files found in history!');
   process.exit(1);
@@ -26,22 +28,14 @@ const destFile = path.join(EXECUTE_DIR, LAST_EXECUTED_FILE);
 
 // Copy latest migration to execute folder
 fs.copyFileSync(sourceFile, destFile);
-console.log(`➡️ Copied last migration to execute folder: ${LAST_EXECUTED_FILE}`);
+console.log(
+  `➡️ Copied last migration to execute folder: ${LAST_EXECUTED_FILE}`,
+);
 
 // Run TypeORM migration
 try {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const typeOrmCli = './node_modules/typeorm/cli.js';
-  const dataSource = isProduction ? './dist/config/typeorm.js' : './src/config/typeorm.ts';
-
-  let command;
-  if (isProduction) {
-    command = `node ${typeOrmCli} migration:run -d ${dataSource}`;
-  } else {
-    command = `npx ts-node -r tsconfig-paths/register ${typeOrmCli} migration:run -d ${dataSource}`;
-  }
-  
-  console.log(`➡️ Running migrations via TypeORM CLI (${isProduction ? 'Production' : 'Development'})...`);
+  const command = `npx ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d ./src/config/typeorm.ts`;
+  console.log('➡️ Running migrations via TypeORM CLI...');
   execSync(command, { stdio: 'inherit' });
   console.log('✅ Migration executed successfully!');
 } catch (error: any) {

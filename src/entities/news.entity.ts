@@ -4,9 +4,6 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  DeleteDateColumn,
 } from 'typeorm';
 import { CategoryEntity } from './category.entity';
 
@@ -27,22 +24,22 @@ export class NewsEntity {
   @JoinColumn({ name: 'category_id' })
   category: CategoryEntity;
 
-  @CreateDateColumn({
+  @Column({
     type: 'datetime',
-    name: 'created_at',
     default: () => 'CURRENT_TIMESTAMP',
+    name: 'created_at',
   })
   createdAt: Date;
 
-  @UpdateDateColumn({
+  @Column({
     type: 'datetime',
-    name: 'updated_at',
     default: () => 'CURRENT_TIMESTAMP',
     onUpdate: 'CURRENT_TIMESTAMP',
+    name: 'updated_at',
   })
   updatedAt: Date;
 
-  @DeleteDateColumn({
+  @Column({
     type: 'datetime',
     name: 'deleted_at',
     nullable: true,
